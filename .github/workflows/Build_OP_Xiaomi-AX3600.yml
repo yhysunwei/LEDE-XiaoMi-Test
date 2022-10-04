@@ -33,8 +33,8 @@ env:
   REPO_BRANCH: master
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: AX3600.config
-  DIY_P1_SH: lede_diy-part1.sh
-  DIY_P2_SH: AX6_diy-part2.sh
+  DIY_P1_SH: ipq807x-diy-part1.sh
+  DIY_P2_SH: ipq807x-diy-part2.sh
   UPLOAD_BIN_DIR: false
   UPLOAD_FIRMWARE: true
   UPLOAD_COWTRANSFER: false
