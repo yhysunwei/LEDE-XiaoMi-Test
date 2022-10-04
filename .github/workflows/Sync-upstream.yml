@@ -1,62 +1,58 @@
+#
+# Copyright (c) 2019-2021 P3TERX <https://p3terx.com>
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+#
+# https://github.com/P3TERX/Actions-OpenWrt
+# File: .github/workflows/update-checker.yml
+# Description: Source code update checker
+#
 
-name: Sync upstream
+name: Update Checker
+
+env:
+  REPO_URL: https://github.com/openwrt/openwrt
+  REPO_BRANCH: master
 
 on:
-#  push:
-#    paths:
-#      - '.github/workflows/Sync-upstream.yml'
-#      - 'diy/**'
+  workflow_dispatch:
   schedule:
-    - cron: 0 12 * * *
-  watch:
-    types: started
-  repository_dispatch:
+    - cron: 0 */18 * * *
 
 jobs:
-  build:
-    if: github.event.repository.owner.id == github.event.sender.id
-    runs-on: Ubuntu-20.04
-
-    name: Update ${{matrix.target}}
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [main]
+  check:
+    runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v2
+
+    - name: Get Commit Hash
+      id: getHash
+      run: |
+        git clone --depth 1 $REPO_URL -b $REPO_BRANCH .
+        echo "::set-output name=commitHash::$(git rev-parse HEAD)"
+
+    - name: Compare Commit Hash
+      id: cacheHash
+      uses: actions/cache@v2
       with:
-        fetch-depth: 0
+        path: .commitHash
+        key: HEAD-${{ steps.getHash.outputs.commitHash }}
 
-    - name: Initialization environment
-      run : |
-        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git config --global user.name "github-actions[bot]"
-        sudo timedatectl set-timezone "Asia/Shanghai"
-        
-    - name: Clone packages
+    - name: Save New Commit Hash
+      if: steps.cacheHash.outputs.cache-hit != 'true'
       run: |
-        cd $GITHUB_WORKSPACE
-        git clone -b ${{matrix.target}} https://github.com/fichenx/OpenWrt.git ${{matrix.target}}
-        cd ${{matrix.target}}
-        #git rm -r --cache * >/dev/null 2>&1 &
-        #rm -rf `find ./* -maxdepth 0 -type d ! -name "diy"` >/dev/null 2>&1
-        svn export --force https://github.com/breakings/OpenWrt/trunk/general
+        echo ${{ steps.getHash.outputs.commitHash }} | tee .commitHash
 
-    - name: Upload package
-      env: 
-        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-      run: |
-        [ -e $GITHUB_WORKSPACE/LICENSE ] && cp $GITHUB_WORKSPACE/LICENSE $GITHUB_WORKSPACE/${{matrix.target}}
-        [ -e $GITHUB_WORKSPACE/README.md ] && cp $GITHUB_WORKSPACE/README.md $GITHUB_WORKSPACE/${{matrix.target}}
-        cd $GITHUB_WORKSPACE/${{matrix.target}}
-        git add .
-        git commit -am "update $(date +%Y-%m-%d" "%H:%M:%S)"
-        git push --quiet "https://${{ secrets.ACCESS_TOKEN }}@github.com/fichenx/OpenWrt.git" HEAD:${{matrix.target}}
-               
+    - name: Trigger build
+      if: steps.cacheHash.outputs.cache-hit != 'true'
+      uses: peter-evans/repository-dispatch@v1
+      with:
+        token: ${{ secrets.ACTIONS_TRIGGER_PAT }}
+        event-type: Source Code Update
+
     - name: Delete workflow runs
-      uses: Mattraks/delete-workflow-runs@v2.0.2
+      uses: GitRML/delete-workflow-runs@main
       with:
         retain_days: 1
-        keep_minimum_runs: 3
+        keep_minimum_runs: 1
